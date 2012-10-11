@@ -11,8 +11,6 @@
 @interface FGalleryPhotoView (Private)
 - (UIImage*)createHighlightImageWithFrame:(CGRect)rect;
 - (void)killActivityIndicator;
-- (void)startTapTimer;
-- (void)stopTapTimer;
 @end
 
 
@@ -45,6 +43,15 @@
 	// create an activity inidicator
 	_activity = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
 	[self addSubview:_activity];
+    
+    _tapRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
+    [self addGestureRecognizer:_tapRecognizer];
+    
+    _doubleTapRecognizer = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleDoubleTap:)];
+    _doubleTapRecognizer.numberOfTapsRequired = 2;
+    [self addGestureRecognizer:_doubleTapRecognizer];
+    
+    [_tapRecognizer requireGestureRecognizerToFail:_doubleTapRecognizer];
 	
 	return self;
 }
@@ -83,7 +90,6 @@
 - (void)resetZoom
 {
 	_isZoomed = NO;
-	[self stopTapTimer];
 	[self setZoomScale:self.minimumZoomScale animated:NO];
 	[self zoomToRect:CGRectMake(0, 0, self.frame.size.width, self.frame.size.height ) animated:NO];
 	self.contentSize = CGSizeMake(self.frame.size.width * self.zoomScale, self.frame.size.height * self.zoomScale );
@@ -133,78 +139,49 @@
 }
 
 
-- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
-	UITouch *touch = [[event allTouches] anyObject];
-	
-	if (touch.tapCount == 2) {
-		[self stopTapTimer];
-		
-		if( _isZoomed ) 
-		{
-			_isZoomed = NO;
-			[self setZoomScale:self.minimumZoomScale animated:YES];
-		}
-		else {
-			
-			_isZoomed = YES;
-			
-			// define a rect to zoom to. 
-			CGPoint touchCenter = [touch locationInView:self];
-			CGSize zoomRectSize = CGSizeMake(self.frame.size.width / self.maximumZoomScale, self.frame.size.height / self.maximumZoomScale );
-			CGRect zoomRect = CGRectMake( touchCenter.x - zoomRectSize.width * .5, touchCenter.y - zoomRectSize.height * .5, zoomRectSize.width, zoomRectSize.height );
-			
-			// correct too far left
-			if( zoomRect.origin.x < 0 )
-				zoomRect = CGRectMake(0, zoomRect.origin.y, zoomRect.size.width, zoomRect.size.height );
-			
-			// correct too far up
-			if( zoomRect.origin.y < 0 )
-				zoomRect = CGRectMake(zoomRect.origin.x, 0, zoomRect.size.width, zoomRect.size.height );
-			
-			// correct too far right
-			if( zoomRect.origin.x + zoomRect.size.width > self.frame.size.width )
-				zoomRect = CGRectMake(self.frame.size.width - zoomRect.size.width, zoomRect.origin.y, zoomRect.size.width, zoomRect.size.height );
-			
-			// correct too far down
-			if( zoomRect.origin.y + zoomRect.size.height > self.frame.size.height )
-				zoomRect = CGRectMake( zoomRect.origin.x, self.frame.size.height - zoomRect.size.height, zoomRect.size.width, zoomRect.size.height );
-			
-			// zoom to it.
-			[self zoomToRect:zoomRect animated:YES];
-		}
-	}
+- (void)handleDoubleTap:(UITapGestureRecognizer*)sender
+{
+    if (sender.state != UIGestureRecognizerStateEnded) return;
+    
+    if( _isZoomed )
+    {
+        _isZoomed = NO;
+        [self setZoomScale:self.minimumZoomScale animated:YES];
+    }
+    else {
+        
+        _isZoomed = YES;
+        
+        // define a rect to zoom to.
+        CGPoint touchCenter = [sender locationInView:self];
+        CGSize zoomRectSize = CGSizeMake(self.frame.size.width / self.maximumZoomScale, self.frame.size.height / self.maximumZoomScale );
+        CGRect zoomRect = CGRectMake( touchCenter.x - zoomRectSize.width * .5, touchCenter.y - zoomRectSize.height * .5, zoomRectSize.width, zoomRectSize.height );
+        
+        // correct too far left
+        if( zoomRect.origin.x < 0 )
+            zoomRect = CGRectMake(0, zoomRect.origin.y, zoomRect.size.width, zoomRect.size.height );
+        
+        // correct too far up
+        if( zoomRect.origin.y < 0 )
+            zoomRect = CGRectMake(zoomRect.origin.x, 0, zoomRect.size.width, zoomRect.size.height );
+        
+        // correct too far right
+        if( zoomRect.origin.x + zoomRect.size.width > self.frame.size.width )
+            zoomRect = CGRectMake(self.frame.size.width - zoomRect.size.width, zoomRect.origin.y, zoomRect.size.width, zoomRect.size.height );
+        
+        // correct too far down
+        if( zoomRect.origin.y + zoomRect.size.height > self.frame.size.height )
+            zoomRect = CGRectMake( zoomRect.origin.x, self.frame.size.height - zoomRect.size.height, zoomRect.size.width, zoomRect.size.height );
+        
+        // zoom to it.
+        [self zoomToRect:zoomRect animated:YES];
+    }
 }
 
-
-- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
+- (void)handleTap:(UITapGestureRecognizer*)sender
 {
-	if([[event allTouches] count] == 1 ) {
-		UITouch *touch = [[event allTouches] anyObject];
-		if( touch.tapCount == 1 ) {
-			
-			if(_tapTimer ) [self stopTapTimer];
-			[self startTapTimer];
-		}
-	}
-}
-
-- (void)startTapTimer
-{
-	_tapTimer = [[NSTimer alloc] initWithFireDate:[NSDate dateWithTimeIntervalSinceNow:.5] interval:.5 target:self selector:@selector(handleTap) userInfo:nil repeats:NO];
-	[[NSRunLoop currentRunLoop] addTimer:_tapTimer forMode:NSDefaultRunLoopMode];
-	
-}
-- (void)stopTapTimer
-{
-	if([_tapTimer isValid])
-		[_tapTimer invalidate];
-	
-	[_tapTimer release];
-	_tapTimer = nil;
-}
-
-- (void)handleTap
-{
+    if (sender.state != UIGestureRecognizerStateEnded) return;
+    
 	// tell the controller
 	if([photoDelegate respondsToSelector:@selector(didTapPhotoView:)])
 		[photoDelegate didTapPhotoView:self];
@@ -232,8 +209,7 @@
 }
 
 - (void)dealloc {
-	[self stopTapTimer];
-	
+
 	[_button release];
 	_button = nil;
 	

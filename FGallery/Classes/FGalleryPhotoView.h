@@ -33,6 +33,8 @@
 @property (nonatomic,readonly) UIImageView *imageView;
 @property (nonatomic,readonly) UIButton *button;
 @property (nonatomic,readonly) UIActivityIndicatorView *activity;
+@property (nonatomic,readonly,unsafe_unretained) UITapGestureRecognizer* tapRecognizer;
+@property (nonatomic,readonly,unsafe_unretained) UITapGestureRecognizer* doubleTapRecognizer;
 
 @end
 
